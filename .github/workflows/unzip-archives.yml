@@ -1,0 +1,73 @@
+name: Unzip Archives
+
+on:
+  push:
+    paths:
+      - '**.zip'
+      - '.github/workflows/unzip-archives.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install unzip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+
+      - name: Extract zip archives safely
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          shopt -s globstar nullglob
+          found=0
+
+          mkdir -p extracted
+
+          for zipfile in **/*.zip; do
+            # Skip anything already inside extracted, just in case.
+            if [[ "$zipfile" == extracted/* ]]; then
+              continue
+            fi
+
+            found=1
+            base="$(basename "$zipfile" .zip)"
+            target="extracted/$base"
+
+            echo "Extracting $zipfile -> $target"
+            mkdir -p "$target"
+
+            # -n means never overwrite existing extracted files.
+            unzip -n "$zipfile" -d "$target"
+          done
+
+          if [[ "$found" -eq 0 ]]; then
+            echo "No zip archives found. Nothing to extract."
+          fi
+
+      - name: Commit extracted files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add extracted
+            git commit -m "Extract zip archives"
+            git push
+          else
+            echo "No extracted changes to commit."
+          fi
