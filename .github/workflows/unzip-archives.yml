@@ -2,8 +2,10 @@ name: Unzip Archives
 
 on:
   push:
+    branches:
+      - main
     paths:
-      - '**.zip'
+      - '**/*.zip'
       - '.github/workflows/unzip-archives.yml'
   workflow_dispatch:
 
@@ -29,14 +31,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           shopt -s globstar nullglob
-          found=0
 
+          found=0
           mkdir -p extracted
 
           for zipfile in **/*.zip; do
-            # Skip anything already inside extracted, just in case.
             if [[ "$zipfile" == extracted/* ]]; then
               continue
             fi
@@ -47,9 +47,7 @@ jobs:
 
             echo "Extracting $zipfile -> $target"
             mkdir -p "$target"
-
-            # -n means never overwrite existing extracted files.
-            unzip -n "$zipfile" -d "$target"
+            unzip -o "$zipfile" -d "$target"
           done
 
           if [[ "$found" -eq 0 ]]; then
@@ -64,7 +62,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if [[ -n "$(git status --porcelain)" ]]; then
+          if [[ -n "$(git status --porcelain extracted)" ]]; then
             git add extracted
             git commit -m "Extract zip archives"
             git push
