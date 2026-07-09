@@ -1,0 +1,19 @@
+{
+  "name": "synthia-klein-mesh",
+  "version": "0.1.0",
+  "description": "Proof of concept: 8 Klein-system tools as standalone JS modules, connected via an emergent-channel EventMesh, exposed through one MCP hub. No LLM dependency in the core loop.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "demo": "node src/index.js",
+    "demo:extended": "node src/demoExtended.js",
+    "mcp": "node src/mcp/mcpHub.js",
+    "frontend": "node src/frontend/meshServer.js"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "optionalDependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  }
+}

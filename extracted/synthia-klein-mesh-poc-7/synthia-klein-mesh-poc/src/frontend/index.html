@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Morphing Network — synthia-klein-mesh</title>
+<style>
+  body { margin: 0; background: #0a0a0a; font-family: -apple-system, sans-serif; overflow: hidden; }
+  #status { position: fixed; top: 12px; left: 12px; color: #c084fc; font-size: 13px; z-index: 10; }
+  #log { position: fixed; bottom: 0; left: 0; right: 0; max-height: 140px; overflow-y: auto;
+         background: rgba(10,10,10,0.85); color: #e8921a; font: 11px monospace; padding: 8px; z-index: 10; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<div id="status">connecting…</div>
+<canvas id="canvas"></canvas>
+<div id="log"></div>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+const PALETTE = ['#f5c518', '#e8921a', '#10d474', '#c084fc', '#ff5959'];
+function colorFor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+
+// nodes: channelName -> { x, y, vx, vy, pulse, color }
+const nodes = new Map();
+// edges: array of { from: 'head.dispatch'-or-source-tool-as-node, to: channel, age }
+const edges = [];
+
+function ensureNode(name) {
+  if (nodes.has(name)) return nodes.get(name);
+  const node = {
+    x: canvas.width / 2 + (Math.random() - 0.5) * 200,
+    y: canvas.height / 2 + (Math.random() - 0.5) * 200,
+    vx: 0, vy: 0,
+    pulse: 1,
+    color: colorFor(name),
+    label: name,
+  };
+  nodes.set(name, node);
+  return node;
+}
+
+function log(text) {
+  const el = document.getElementById('log');
+  const line = document.createElement('div');
+  line.textContent = text;
+  el.prepend(line);
+  while (el.children.length > 30) el.removeChild(el.lastChild);
+}
+
+// --- physics: gentle repulsion + spring edges, "morphing" via continuous relax ---
+function tick() {
+  const nodeList = [...nodes.values()];
+  // repulsion
+  for (let i = 0; i < nodeList.length; i++) {
+    for (let j = i + 1; j < nodeList.length; j++) {
+      const a = nodeList[i], b = nodeList[j];
+      const dx = a.x - b.x, dy = a.y - b.y;
+      const dist = Math.max(30, Math.sqrt(dx * dx + dy * dy));
+      const force = 800 / (dist * dist);
+      a.vx += (dx / dist) * force; a.vy += (dy / dist) * force;
+      b.vx -= (dx / dist) * force; b.vy -= (dy / dist) * force;
+    }
+  }
+  // spring toward center + edge attraction
+  for (const n of nodeList) {
+    n.vx += (canvas.width / 2 - n.x) * 0.0008;
+    n.vy += (canvas.height / 2 - n.y) * 0.0008;
+  }
+  for (const e of edges) {
+    const a = nodes.get(e.from), b = nodes.get(e.to);
+    if (!a || !b) continue;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    a.vx += dx * 0.001; a.vy += dy * 0.001;
+    b.vx -= dx * 0.001; b.vy -= dy * 0.001;
+  }
+  for (const n of nodeList) {
+    n.vx *= 0.85; n.vy *= 0.85;
+    n.x += n.vx; n.y += n.vy;
+    n.pulse = Math.max(1, n.pulse * 0.92);
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (const e of edges) {
+    const a = nodes.get(e.from), b = nodes.get(e.to);
+    if (!a || !b) continue;
+    ctx.strokeStyle = a.color + '55';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+
+  for (const n of nodes.values()) {
+    const r = 6 * n.pulse;
+    ctx.beginPath();
+    ctx.fillStyle = n.color;
+    ctx.shadowColor = n.color;
+    ctx.shadowBlur = 10 * n.pulse;
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffffaa';
+    ctx.font = '11px monospace';
+    ctx.fillText(n.label, n.x + 10, n.y + 4);
+  }
+}
+
+function loop() { tick(); draw(); requestAnimationFrame(loop); }
+loop();
+
+// --- WebSocket: real events from the live mesh, not simulated ---
+const statusEl = document.getElementById('status');
+const ws = new WebSocket('ws://' + location.host);
+ws.onopen = () => statusEl.textContent = 'connected — waiting for channels to emerge';
+ws.onclose = () => statusEl.textContent = 'disconnected';
+
+ws.onmessage = (ev) => {
+  const msg = JSON.parse(ev.data);
+  if (msg.type === 'topology') {
+    statusEl.textContent = msg.topology.length + ' channel(s) already live';
+    for (const t of msg.topology) {
+      ensureNode(t.channel);
+      for (const src of t.sourceTools) {
+        ensureNode(src);
+        edges.push({ from: src, to: t.channel });
+      }
+    }
+  }
+  if (msg.type === 'emergence') {
+    ensureNode(msg.source);
+    const ch = ensureNode(msg.channel);
+    ch.pulse = 3;
+    edges.push({ from: msg.source, to: msg.channel });
+    log('EMERGED: ' + msg.channel + '  (from ' + msg.source + ')');
+    statusEl.textContent = nodes.size + ' nodes, ' + edges.length + ' edges';
+  }
+  if (msg.type === 'message') {
+    const ch = nodes.get(msg.channel);
+    if (ch) ch.pulse = 2;
+    log(msg.source + ' -> ' + msg.channel);
+  }
+};
+</script>
+</body>
+</html>
