@@ -1,0 +1,57 @@
+{
+  "schema": "synthia-lcm/klein-faces.v1",
+  "description": "Capability declarations; no fixed modality routing in ClientComputer",
+  "capabilities": [
+    {
+      "id": "klein.face.code.create",
+      "version": "0.1.0",
+      "requires": [
+        "klein.context",
+        "request.code"
+      ],
+      "provides": "artifact.code",
+      "dimension": "Design",
+      "permission": "artifact.write",
+      "cost": 2,
+      "runner": "python-klein-v1",
+      "requestType": "request.code",
+      "contextType": "klein.context",
+      "modality": "code",
+      "extension": ".py"
+    },
+    {
+      "id": "klein.face.image.create",
+      "version": "0.1.0",
+      "requires": [
+        "klein.context",
+        "request.image"
+      ],
+      "provides": "artifact.image",
+      "dimension": "Space",
+      "permission": "artifact.write",
+      "cost": 2,
+      "runner": "python-klein-v1",
+      "requestType": "request.image",
+      "contextType": "klein.context",
+      "modality": "image",
+      "extension": ".png"
+    },
+    {
+      "id": "klein.face.video.create",
+      "version": "0.1.0",
+      "requires": [
+        "klein.context",
+        "request.video"
+      ],
+      "provides": "artifact.video",
+      "dimension": "Movement",
+      "permission": "artifact.write",
+      "cost": 4,
+      "runner": "python-klein-v1",
+      "requestType": "request.video",
+      "contextType": "klein.context",
+      "modality": "video",
+      "extension": ".mp4"
+    }
+  ]
+}
