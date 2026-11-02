@@ -22,7 +22,7 @@ function sortObject(x) {
 const digest = (x) => createHash('sha256').update(canon(x)).digest('hex');
 
 function normalizedManifest(m) {
-  if (!m || !/^[a-z][a-z0-9._-]+$/.test(m.id ?? '') ||
+  if (!m || !/^[a-z][a-z0-9._-]*$/.test(m.id ?? '') ||
       !/^\d+\.\d+\.\d+$/.test(m.version ?? '') ||
       typeof m.provides !== 'string' || !m.provides ||
       !Array.isArray(m.requires) || m.requires.some(x => typeof x !== 'string' || !x)) {
