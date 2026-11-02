@@ -1,0 +1,49 @@
+{
+  "tools": [
+    {
+      "id": "k-autoling",
+      "gate": 6,
+      "trigram": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "k-diseminer",
+      "gate": 59,
+      "trigram": [
+        1,
+        0,
+        1
+      ]
+    }
+  ],
+  "context": {
+    "address": "demo/gate:6/line:4",
+    "active": [
+      "k-autoling",
+      "k-diseminer"
+    ],
+    "dimension_weights": {
+      "Movement": 0.6,
+      "Evolution": 0.6,
+      "Being": 0.6,
+      "Design": 0.6,
+      "Space": 0.6
+    },
+    "phase": 0.2,
+    "coherence": 1
+  },
+  "modality": "code",
+  "action": "create",
+  "operation": {
+    "name": "signal_mix",
+    "args": [
+      "movement",
+      "being"
+    ],
+    "expression": "(movement+being)/2"
+  },
+  "output": "modern/examples/generated_signal_mix.py"
+}
