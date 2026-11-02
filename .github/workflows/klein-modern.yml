@@ -1,0 +1,33 @@
+name: Klein modern adapter tests
+on:
+  push:
+    branches:
+      - "feature/klein-multimodal-adapters-*"
+    paths:
+      - "modern/**"
+      - ".github/workflows/klein-modern.yml"
+  pull_request:
+    paths:
+      - "modern/**"
+      - ".github/workflows/klein-modern.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: python -m pip install -r modern/requirements-dev.txt
+      - run: node --test modern/tests/client-computer.test.mjs
+      - run: python -m pytest -q modern/tests/test_klein_modern.py
