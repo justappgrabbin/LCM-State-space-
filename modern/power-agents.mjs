@@ -14,6 +14,7 @@ import { IntegratedToolFactory, stableId } from './vendor/tool-factory/src/integ
 import { gateToLines } from './vendor/king-wen.mjs';
 import { EventMesh } from '../extracted/synthia-klein-mesh-poc-7/synthia-klein-mesh-poc/src/mesh/EventMesh.js';
 import { Messy } from '../extracted/synthia-klein-mesh-poc-7/synthia-klein-mesh-poc/src/tools/messy.js';
+import { loadLocalKleinFaces } from './python-faces.mjs';
 
 export const PLACES = Object.freeze(['Movement','Evolution','Being','Design','Space']);
 const FIELDS = Object.freeze({
@@ -75,7 +76,7 @@ export class PowerAgent {
     assertPlace(dimension);
     return Object.freeze(Array.from({length:64},(_,i)=>({
       dimension,gate:i+1,occupied:this.places.get(dimension).has(i+1),
-      toolId:this.places.get(dimension).get(i+1)?.tool.id ?? null
+      toolId:this.places.get(dimension).get(i+1)?.tool.id ?? this.places.get(dimension).get(i+1)?.tool.name ?? null
     })));
   }
   lookup(dimension,gate) {
@@ -90,6 +91,8 @@ export class PowerAgent {
     if (level!==undefined) request.level=level;
     const result=this.factory.generate(request);
     if (!result.tool) throw new Error('Factory unresolved: '+result.status);
+    if (result.tool.plan.gate!==gate || result.tool.plan.dimension!==dimension)
+      throw new Error('Factory returned mismatched address');
     return this.attachExisting({dimension,gate,tool:result.tool,coordinates,origin:'existing-factory'});
   }
   /** Register an original Klein tool (including MESSY) without cloning it. */
@@ -116,7 +119,7 @@ export class PowerAgent {
     for (let gate=1;gate<=64;gate++) if(!this.lookup(dimension,gate)){
       const options=blueprint(gate);
       if (!options || typeof options!=='object') throw new TypeError('Tool blueprint must be an object');
-      made.push(this.assign({dimension,gate,...options}));
+      made.push(this.assign({...options,dimension,gate}));
     }
     return made;
   }
@@ -189,9 +192,51 @@ export class PowerAgent {
   messyWorld({agents=[],rules=[],ticks=1,title='Messy World',ruleDescriptions=[]}={}){
     const messy=new Messy(this.mesh);
     const simulation=messy.run({agents,rules,ticks});
-    const html=messy.codegen({title,agents:simulation.finalState,ruleDescriptions});
+    // MESSY.codegen embeds JSON into an HTML <script>; sanitize this export
+    // at the adapter boundary without changing original simulation rules.
+    const safeAgents=simulation.finalState.map((a,i)=>({
+      id:String(a.id??i).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,60),
+      features:Object.fromEntries(Object.entries(a.features||{}).filter(([k,v])=>
+        ['x','y','vx','vy','radius'].includes(k)&&typeof v==='number'&&Number.isFinite(v) ||
+        k==='color'&&typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v)))
+    }));
+    const safeTitle=String(title).replace(/[<>&"']/g,'').slice(0,90);
+    const safeRules=ruleDescriptions.map(x=>String(x).replace(/[\r\n<>&]/g,' ').slice(0,160));
+    const html=messy.codegen({title:safeTitle,agents:safeAgents,ruleDescriptions:safeRules});
     return {simulation,html,implementation:'existing/Messy.run+Messy.codegen'};
   }
+  /**
+   * Connect addressed, co-active Power tools to the EXISTING Python Klein
+   * code/image/video faces. The user supplies dimensional weights explicitly;
+   * we will not invent a personal chart or collapse all levels into one.
+   */
+  mediaContext(linkId,dimensionWeights,{phase=0,coherence=1}={}){
+    const edge=this.links.get(linkId);
+    if(!edge)throw new Error('No such Hamming-validated link: '+linkId);
+    if(!dimensionWeights || PLACES.some(d=>!Number.isFinite(dimensionWeights[d]) ||
+        dimensionWeights[d]<0 || dimensionWeights[d]>1) ||
+        Object.keys(dimensionWeights).length!==PLACES.length)
+      throw new RangeError('Provide one finite 0..1 weight for each existing dimensional place');
+    for(const [k,v] of Object.entries({phase,coherence}))
+      if(!Number.isFinite(v)||v<0||v>1)throw new RangeError(k+' must be 0..1');
+    const participants=[this.resolve(edge.from),this.resolve(edge.to)];
+    const ids=participants.map(p=>p.tool.id||p.tool.name);
+    if(ids[0]===ids[1])throw new Error('Distinct coactive tool IDs required');
+    const address='power:'+this.id+':'+linkId;
+    return Object.freeze({
+      'klein.context':{
+        tools:participants.map(p=>({id:p.tool.id||p.tool.name,
+          gate:p.gate,trigram:gateToLines(p.gate).slice(0,3)})),
+        context:{address,active:ids,dimension_weights:{...dimensionWeights},phase,coherence}
+      },
+      address,toolIds:ids
+    });
+  }
+  /** Register the already-authored image/video/code adapters: no new engine. */
+  async enableExistingMedia(registry,{workspaceRoot,python='python3'}={}){
+    return loadLocalKleinFaces(registry,{workspaceRoot,python});
+  }
+
   /** Expose an existing pair to ClientComputer's typed planner. */
   registerLink(registry,linkId){
     const edge=this.links.get(linkId);if(!edge)throw new Error('No such link');
