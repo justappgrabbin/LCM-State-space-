@@ -55,7 +55,7 @@ test('existing factory tools execute in linked contact and bounded local feedbac
   assert.equal(agent.mesh.topology().length,1);
   const f=await agent.feedback({at:{dimension:'Movement',gate:1},input:'first',iterations:2});
   assert.equal(f.steps.length,2);
-  assert.throws(()=>agent.feedback({at:{dimension:'Movement',gate:1},iterations:9}),/iterations/);
+  await assert.rejects(agent.feedback({at:{dimension:'Movement',gate:1},iterations:9}),/iterations/);
   assert.equal(agent.receipts.length,2);
 });
 
