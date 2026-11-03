@@ -30,4 +30,4 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: python -m pip install -r modern/requirements-dev.txt
       - run: node --test modern/tests/*.test.mjs
-      - run: python -m pytest -q modern/tests/test_klein_modern.py
+      - run: python -m pytest -q modern/tests
